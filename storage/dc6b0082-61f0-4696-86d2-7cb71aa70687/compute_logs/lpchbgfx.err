@@ -1,0 +1,6 @@
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - 238416 - LOGS_CAPTURED - Started capturing logs in process (pid: 238416).
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - 238416 - get_foi_request - STEP_START - Started execution of step "get_foi_request".
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - 238416 - get_foi_request - STEP_OUTPUT - Yielded output "result" of type "Any". (Type check passed).
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - get_foi_request - Writing S3 object at: s3://main/dagster/storage/dc6b0082-61f0-4696-86d2-7cb71aa70687/get_foi_request/result
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - 238416 - get_foi_request - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
+[32m2023-06-11 17:55:28 +0200[0m - dagster - [34mDEBUG[0m - single_foi_request - dc6b0082-61f0-4696-86d2-7cb71aa70687 - 238416 - get_foi_request - STEP_SUCCESS - Finished execution of step "get_foi_request" in 192ms.
