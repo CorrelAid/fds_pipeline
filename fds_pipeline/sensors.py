@@ -1,6 +1,6 @@
 from dagster import sensor, RunRequest, SkipReason, RunConfig, SensorEvaluationContext
 
-from fds_pipeline.jobs import single_foi_request, APIConfig
+from fds_pipeline.jobs import proc_insert_foi_request, APIConfig
 
 
 # Sensor that counts number of foi requests in db and if number is lower than items in
@@ -9,7 +9,7 @@ from fds_pipeline.jobs import single_foi_request, APIConfig
 #  if below 0, set to exact difference.
 # checks highest id in db, create a list of length of this var with ascending ids, then
 # starts job with this list of ids.
-@sensor(job=single_foi_request, minimum_interval_seconds=30, required_resource_keys={"fds_api", "postgres_query"})
+@sensor(job=proc_insert_foi_request, minimum_interval_seconds=30, required_resource_keys={"fds_api", "postgres_query"})
 def new_foi_requests(context: SensorEvaluationContext):
     total_api = context.resources.fds_api.get_total()
 

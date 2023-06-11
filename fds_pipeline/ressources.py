@@ -21,6 +21,13 @@ class FDSAPI(ConfigurableResource):
         res = res.json()
         return res
 
+    def get_campaigns(self) -> list:
+        query = {"limit": 50, "offset": 0}
+        url = self.url + "campaign/"
+        res = requests.get(url, params=query, headers={"content-type": "application/json"})
+        res = res.json()["objects"]
+        return res
+
 
 class PostgresQuery(ConfigurableResource):
     db: str
