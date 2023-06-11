@@ -123,6 +123,10 @@ celerybeat.pid
 
 logs/
 
+storage/
+
+history/
+
 schedules/
 
 .telemetry/
