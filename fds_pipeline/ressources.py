@@ -1,5 +1,6 @@
 from dagster import ConfigurableResource, List
 import requests
+from urllib.error import HTTPError
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connectable
@@ -17,9 +18,16 @@ class FDSAPI(ConfigurableResource):
         return res["meta"]["total_count"]
 
     def get_foi_request(self, id_) -> dict:
-        res = requests.get(self.url + f"request/{id_}", headers={"content-type": "application/json"})
-        res = res.json()
-        return res
+        try:
+            url = self.url + f"request/{id_}"
+            res = requests.get(url, headers={"content-type": "application/json"})
+            res.raise_for_status()  # Raises an exception for any 4xx or 5xx status code
+            return res.json()
+        except requests.exceptions.HTTPError as err:
+            if res.status_code == 404:
+                raise HTTPError(url, 404, "FOI request not found", hdrs={}, fp=None)
+            else:
+                raise HTTPError(url, res.status_code, err, hdrs={}, fp=None)
 
     def get_campaigns(self) -> list:
         query = {"limit": 50, "offset": 0}

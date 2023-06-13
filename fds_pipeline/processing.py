@@ -2,7 +2,7 @@ import pandas as pd
 
 
 def gen_date(df, col_str):
-    temp = pd.to_datetime(df[col_str], utc=True)
+    temp = pd.to_datetime(df[col_str], utc=True, format="mixed")
     return temp.dt.tz_convert(None)
 
 

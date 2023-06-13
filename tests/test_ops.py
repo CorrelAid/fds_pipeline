@@ -9,15 +9,22 @@ from fds_pipeline.jobs import (
 )
 import importlib
 from dagster import build_op_context
+from dagster._core.definitions.events import Failure
 import pandas as pd
 from fds_pipeline.ressources import FDSAPI
 
 
+# TODO: test more processing cases: 27, 42, 46
 def test_get_foi_request():
     context = build_op_context(resources={"fds_api": FDSAPI()})
     temp = get_foi_request(context, APIConfig(id_=82))
     assert isinstance(temp, dict)
     assert "id" in temp
+    context = build_op_context(resources={"fds_api": FDSAPI()})
+    try:
+        temp = get_foi_request(context, APIConfig(id_=1))
+    except Failure as err:
+        assert err.description == "FOI request not found"
 
 
 def test_extract_foi_request():

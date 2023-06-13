@@ -1,4 +1,26 @@
 from dagster_pandas import create_dagster_pandas_dataframe_type, PandasColumn
+from dagster_pandas.constraints import ColumnConstraintViolationException, ColumnConstraint
+import pandas as pd
+
+
+class NullOrDateConstraint(ColumnConstraint):
+    def __init__(self):
+        message = "Value must be either null or a date"
+        super(NullOrDateConstraint, self).__init__(error_description=message, markdown_description=message)
+
+    def validate(self, dataframe, column_name):
+        rows_with_unexpected_values = dataframe[
+            ~(dataframe[column_name].isnull() | pd.to_datetime(dataframe[column_name], errors="coerce").notnull())
+        ]
+
+        if not rows_with_unexpected_values.empty:
+            raise ColumnConstraintViolationException(
+                constraint_name=self.name,
+                constraint_description=self.error_description,
+                column_name=column_name,
+                offending_rows=rows_with_unexpected_values,
+            )
+
 
 FOIRequestDf = create_dagster_pandas_dataframe_type(
     name="FOIRequestDf",
@@ -7,7 +29,12 @@ FOIRequestDf = create_dagster_pandas_dataframe_type(
         PandasColumn.integer_column("jurisdiction_id"),
         PandasColumn.string_column("refusal_reason"),
         PandasColumn.float_column("costs"),
-        PandasColumn.datetime_column("due_date"),
+        PandasColumn(
+            "due_date",
+            constraints=[
+                NullOrDateConstraint(),
+            ],
+        ),
         PandasColumn.datetime_column("created_at"),
         PandasColumn.datetime_column("last_message"),
         PandasColumn.string_column("status"),

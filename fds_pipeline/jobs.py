@@ -1,5 +1,6 @@
-from dagster import op, job, Config, Out
+from dagster import op, job, Config, Out, Failure
 from dagster_pandas import DataFrame
+from urllib.error import HTTPError
 from fds_pipeline.ressources import FDSAPI
 from fds_pipeline.processing import (
     process_foi_request,
@@ -19,8 +20,21 @@ class APIConfig(Config):
 # handle not found error
 @op
 def get_foi_request(context, config: APIConfig, fds_api: FDSAPI) -> dict:
-    foi_req = fds_api.get_foi_request(config.id_)
-    return foi_req
+    context.log.info(f"Getting foi request with id {config.id_}")
+    try:
+        foi_req = fds_api.get_foi_request(config.id_)
+        return foi_req
+    except HTTPError as err:
+        if HTTPError.status == 404:
+            raise Failure(
+                description="Request does not exist",
+                metadata={"http_status": err.status, "error_message": err.msg},
+            )
+        else:
+            raise Failure(
+                description=err.msg,
+                metadata={"http_status": err.status, "error_message": err.msg},
+            )
 
 
 @op(out=Out(FOIRequestDf))
@@ -67,4 +81,5 @@ def retreive_campaigns(context, fds_api: FDSAPI) -> DataFrame:
 
 @job
 def proc_insert_campaigns():
-    return retreive_campaigns()
+    pass
+    # return retreive_campaigns()
