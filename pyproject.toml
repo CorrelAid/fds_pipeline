@@ -16,6 +16,7 @@ dagster-aws = "^0.19.4"
 dagster-docker = "^0.19.9"
 dagster-postgres = "^0.19.9"
 dagster-pandas = "^0.19.9"
+sqlparse = "^0.4.4"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -64,6 +65,7 @@ unfixable = []
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
+    "tests/data",
     ".bzr",
     ".direnv",
     ".eggs",

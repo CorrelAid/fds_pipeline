@@ -6,7 +6,7 @@ def gen_date(df, col_str):
     return temp.dt.tz_convert(None)
 
 
-def process_foi_request(data: pd.DataFrame) -> pd.DataFrame:
+def process_foi_request(data) -> pd.DataFrame:
     df = pd.DataFrame([data])
 
     # extracting public body ID to new column
@@ -56,21 +56,18 @@ def process_foi_request(data: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def process_jurisdiction(data: pd.DataFrame) -> pd.DataFrame:
+def process_public_body(data) -> pd.DataFrame:
     df = pd.DataFrame([data["public_body"]])
-    df = df[["id", "name"]]
-    return df
-
-
-def process_public_body(data: pd.DataFrame) -> pd.DataFrame:
-    df = pd.DataFrame([data["public_body"]])
-    df = df[["id", "name", "jurisdiction"]]
+    try:
+        df = df[["id", "name", "jurisdiction"]]
+    except KeyError:
+        raise KeyError("FOI request was not assigned a public body")
     df["jurisdiction"] = df["jurisdiction"].apply(lambda x: x["id"] if x is not None else pd.NA)
     df.rename(columns={"jurisdiction": "jurisdiction_id"}, inplace=True)
     return df
 
 
-def process_messages(data: pd.DataFrame) -> pd.DataFrame:
+def process_messages(data) -> pd.DataFrame:
     df = pd.DataFrame(data["messages"])
     df["foi_request_id"] = df["request"].apply(lambda req: int(req.split("/")[-2]))
 
@@ -106,10 +103,32 @@ def process_messages(data: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def process_campaigns(data: pd.DataFrame) -> pd.DataFrame:
+def process_campaigns(data) -> pd.DataFrame:
     df = pd.DataFrame(data)
     df = df[["id", "name", "start_date", "active", "slug"]]
-
     df["start_date"] = gen_date(df, "start_date")
-
     return df
+
+
+def process_jurisdictions(data) -> pd.DataFrame:
+    df = pd.DataFrame(data)
+    df = df[["id", "name"]]
+    return df
+
+
+def gen_sql_insert_new(df, table_name) -> str:
+    column_names = df.columns.tolist()
+    values = df.values.tolist()
+    query_lst = []
+    for row in values:
+        query = f"INSERT INTO {table_name} ({', '.join(column_names)}) VALUES "
+        row_values = [f"'{str(value)}'" if pd.notnull(value) else "NULL" for value in row]
+        value_string = f"({', '.join(row_values)})"
+        query += value_string + " ON CONFLICT (id) DO UPDATE SET "
+        update_values = [
+            f"{column} = {value}" if pd.notnull(value) else f"{column} = NULL"
+            for column, value in zip(column_names, row_values)
+        ]
+        query += ", ".join(update_values) + ";"
+        query_lst.append(query)
+    return "\n".join(query_lst)

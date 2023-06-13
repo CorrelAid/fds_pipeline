@@ -22,6 +22,25 @@ class NullOrDateConstraint(ColumnConstraint):
             )
 
 
+class NullOrIntConstraint(ColumnConstraint):
+    def __init__(self):
+        message = "Value must be either null or an int"
+        super(NullOrIntConstraint, self).__init__(error_description=message, markdown_description=message)
+
+    def validate(self, dataframe, column_name):
+        rows_with_unexpected_values = dataframe[
+            ~(dataframe[column_name].isnull() | dataframe[column_name].astype(str).str.isdigit())
+        ]
+
+        if not rows_with_unexpected_values.empty:
+            raise ColumnConstraintViolationException(
+                constraint_name=self.name,
+                constraint_description=self.error_description,
+                column_name=column_name,
+                offending_rows=rows_with_unexpected_values,
+            )
+
+
 FOIRequestDf = create_dagster_pandas_dataframe_type(
     name="FOIRequestDf",
     columns=[
@@ -40,7 +59,12 @@ FOIRequestDf = create_dagster_pandas_dataframe_type(
         PandasColumn.string_column("status"),
         PandasColumn.string_column("resolution"),
         PandasColumn.integer_column("user"),
-        PandasColumn.integer_column("public_body_id"),
+        PandasColumn(
+            "public_body_id",
+            constraints=[
+                NullOrIntConstraint(),
+            ],
+        ),
         PandasColumn.integer_column("campaign_id"),
     ],
 )

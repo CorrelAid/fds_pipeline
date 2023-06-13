@@ -29,10 +29,11 @@ class FDSAPI(ConfigurableResource):
             else:
                 raise HTTPError(url, res.status_code, err, hdrs={}, fp=None)
 
-    def get_campaigns(self) -> list:
+    def get_list(self, type) -> list:
         query = {"limit": 50, "offset": 0}
-        url = self.url + "campaign/"
+        url = self.url + f"{type}/"
         res = requests.get(url, params=query, headers={"content-type": "application/json"})
+        res.raise_for_status()
         res = res.json()["objects"]
         return res
 
@@ -59,3 +60,6 @@ class PostgresQuery(ConfigurableResource):
         rows = self._db_connection.execute(query)
         data = [row[0] for row in rows]
         return data[0]
+
+    def execute(self, query: str) -> None:
+        self._db_connection.execute(query)

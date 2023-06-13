@@ -1,5 +1,5 @@
 # from dagster import validate_run_config, build_sensor_context
-# from fds_pipeline.jobs import proc_insert_foi_request
+# from fds_pipeline.jobs import proc_insert
 # from fds_pipeline.ressources import PostgresQuery,FDSAPI
 # from fds_pipeline.sensors import new_foi_requests
 # from dagster._core.test_utils import instance_for_test
