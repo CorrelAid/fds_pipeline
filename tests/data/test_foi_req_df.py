@@ -11,7 +11,7 @@ data = {
     "last_message": ["2011-08-01 21:34:45.784280"],
     "status": ["asleep"],
     "resolution": [pd.NA],
-    "user": [pd.NA],
+    "user_id": [pd.NA],
     "public_body_id": 23,
     "campaign_id": 10,
 }

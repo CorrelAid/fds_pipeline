@@ -1,4 +1,5 @@
-from dagster import op, job, Config, Out, Failure, RetryRequested
+from dagster import op, job, Config, Out, RetryRequested, graph, OpExecutionContext, In, Output, Nothing
+from dagster_celery import celery_executor
 from dagster_pandas import DataFrame
 from urllib.error import HTTPError
 from sqlalchemy import exc
@@ -20,18 +21,19 @@ class APIConfig(Config):
     id_: int
 
 
-@op
-def get_foi_request(context, config: APIConfig, fds_api: FDSAPI) -> dict:
+# Foi Requests sometimes dont have a public body
+@op(out={"Success": Out(dict, is_required=False), "Failure": Out(is_required=False)})
+def get_foi_request(context: OpExecutionContext, config: APIConfig, fds_api: FDSAPI):
     context.log.info(f"Getting foi request with id {config.id_}")
     try:
         foi_req = fds_api.get_foi_request(config.id_)
-        return foi_req
+        yield Output(foi_req, "Success")
     except HTTPError as err:
         if err.status == 404:
-            raise Failure(
-                description=err.msg,
-                metadata={"http_status": err.status, "error_message": err.msg},
-            )
+            context.log.info(f"ID:{config.id_} does not exist!")
+            yield Output(None, "Failure")
+        else:
+            raise Exception(err)
 
 
 ###### Extract Objects
@@ -41,13 +43,15 @@ def extract_foi_request(get_foi_request) -> DataFrame:
     return df
 
 
-@op(out=Out(PublicBodyDf))
-def extract_public_body(get_foi_request) -> DataFrame:
+# Foi Requests sometimes dont have a public body
+@op(out={"Success": Out(PublicBodyDf, is_required=False), "Failure": Out(is_required=False)})
+def extract_public_body(context: OpExecutionContext, get_foi_request):
     try:
         df = process_public_body(get_foi_request)
-        return df
-    except KeyError as err:
-        raise Failure(description=str(err))
+        yield Output(df, "Success")
+    except KeyError:
+        context.log.info("Foi request was not assigned a public body!")
+        yield Output(None, "Failure")
 
 
 @op(out=Out(MessageDf))
@@ -87,42 +91,52 @@ def insert_public_body(sql_public_body, postgres_query: PostgresQuery):
             raise Exception(err)
 
 
-@op
-def insert_foi_request(context, sql_foi_request, postgres_query: PostgresQuery):
+@op(ins={"start": In(Nothing)})
+def insert_foi_request(context: OpExecutionContext, sql_foi_request, postgres_query: PostgresQuery):
     try:
         postgres_query.execute(sql_foi_request)
-    # if foreign key not present, retry (campaign  is updated once every hour)
+    # if foreign key for campaign not present, retry (campaign  is updated once every hour)
     # if not present again, change campaign_id to be NULL
     except exc.IntegrityError as err:
         if isinstance(err.orig, ForeignKeyViolation):
-            if context.retry_number > 0:
-                if "campaigns" in str(err) and "fk_campaign" in str(err):
+            if "campaigns" in str(err) and "fk_campaign" in str(err):
+                if context.retry_number > 0:
                     sql_foi_request = del_col(sql_foi_request)
                     postgres_query.execute(sql_foi_request)
                 else:
-                    raise Exception(err)
+                    raise RetryRequested(max_retries=1, seconds_to_wait=3600) from err
             else:
-                raise RetryRequested(max_retries=1, seconds_to_wait=3600) from err
+                raise Exception(err)
         else:
             raise Exception(err)
 
 
-@op
+@op(ins={"start": In(Nothing)})
 def insert_messages(sql_messages, postgres_query: PostgresQuery):
     postgres_query.execute(sql_messages)
 
 
-@job
+@graph(executor_def=celery_executor)
 def proc_insert() -> None:
-    data = get_foi_request()
-    try:
-        public_body = extract_public_body(data)
-    except Failure:
-        pass
-    else:
-        insert_public_body(sql_public_body(public_body))
-    insert_foi_request(sql_foi_request(extract_foi_request(data)))
-    insert_messages(sql_messages(extract_messages(data)))
+    # Everything depends on data, so if data is not present, all other ops wont execute
+    data, fail_foi = get_foi_request()
+
+    public_body, fail = extract_public_body(data)
+    foi_request = extract_foi_request(get_foi_request=data)
+    messages = extract_messages(data)
+
+    sql_public_body_ = sql_public_body(public_body)
+    sql_foi_request_ = sql_foi_request(foi_request)
+    sql_messages_ = sql_messages(messages)
+
+    insert_messages(
+        sql_messages_, start=insert_foi_request(sql_foi_request_, start=insert_public_body(sql_public_body_))
+    )
+
+    insert_messages(sql_messages_, start=insert_foi_request(sql_foi_request_, start=fail))
+
+
+proc_insert_job = proc_insert.to_job()
 
 
 # Campaigns

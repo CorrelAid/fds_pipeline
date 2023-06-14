@@ -17,6 +17,7 @@ dagster-docker = "^0.19.9"
 dagster-postgres = "^0.19.9"
 dagster-pandas = "^0.19.9"
 sqlparse = "^0.4.4"
+dagster-celery = "^0.19.9"
 
 
 [tool.poetry.group.dev.dependencies]

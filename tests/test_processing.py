@@ -3,6 +3,7 @@ import importlib
 
 
 def test_del_col():
-    test_sql = importlib.import_module("tests.data.test_foi_req_sql_del").sql
+    test_sql = importlib.import_module("tests.data.test_foi_req_sql").sql
+    result_sql = importlib.import_module("tests.data.test_foi_req_sql_del").sql
     temp = del_col(test_sql)
-    assert test_sql == temp
+    assert temp == result_sql

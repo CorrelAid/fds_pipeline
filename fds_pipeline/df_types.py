@@ -58,7 +58,7 @@ FOIRequestDf = create_dagster_pandas_dataframe_type(
         PandasColumn.datetime_column("last_message"),
         PandasColumn.string_column("status"),
         PandasColumn.string_column("resolution"),
-        PandasColumn.integer_column("user"),
+        PandasColumn.integer_column("user_id"),
         PandasColumn(
             "public_body_id",
             constraints=[

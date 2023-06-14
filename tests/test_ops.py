@@ -19,7 +19,7 @@ import pandas as pd
 from fds_pipeline.ressources import FDSAPI
 
 
-#### Data from single FOI request ######
+### Data from single FOI request ######
 def test_get_foi_request():
     context = build_op_context(resources={"fds_api": FDSAPI()})
     temp = get_foi_request(context, APIConfig(id_=82))
@@ -70,6 +70,7 @@ def test_sql_public_body():
     test_df = importlib.import_module("tests.data.test_public_body_df").df
     test_sql = importlib.import_module("tests.data.test_public_body_sql").sql
     temp = sql_public_body(test_df)
+    print(temp)
     assert temp == test_sql
 
 

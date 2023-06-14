@@ -44,6 +44,7 @@ def process_foi_request(data) -> pd.DataFrame:
     # renaming columns
     df.rename(columns={"jurisdiction": "jurisdiction_id"}, errors="raise", inplace=True)
     df.rename(columns={"campaign": "campaign_id"}, errors="raise", inplace=True)
+    df.rename(columns={"user": "user_id"}, errors="raise", inplace=True)
 
     # extracting ids from string
     df["jurisdiction_id"] = df["jurisdiction_id"].apply(lambda x: int(x.split("/")[-2]) if x is not None else pd.NA)
@@ -118,7 +119,7 @@ def process_jurisdictions(data) -> pd.DataFrame:
 
 
 def gen_sql_insert_new(df, table_name) -> str:
-    column_names = df.columns.tolist()
+    column_names = [f'"{x}"' for x in df.columns.tolist()]
     values = df.values.tolist()
     query_lst = []
     for row in values:
@@ -137,12 +138,12 @@ def gen_sql_insert_new(df, table_name) -> str:
 
 def del_col(sql_string):
     # Find the campaign_id and its value in the SQL string
-    campaign_id_match = re.search(r"campaign_id\s*=\s*'\d+'", sql_string)
+    campaign_id_match = re.search(r""""campaign_id"\s*=\s*'\d+'""", sql_string)
     if campaign_id_match:
         campaign_id = campaign_id_match.group(0)
         campaign_id_value = re.search(r"\d+", campaign_id)
         campaign_id_value = f"'{campaign_id_value.group(0)}')"
-        sql_string = sql_string.replace(campaign_id, "campaign_id = NULL")
+        sql_string = sql_string.replace(campaign_id, '"campaign_id" = NULL')
         sql_string = sql_string.replace(campaign_id_value, "NULL)")
         sql_string = sql_string.rstrip(", ")
         sql_string = sql_string.lstrip(", ")
