@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 
 
 def gen_date(df, col_str):
@@ -132,3 +133,18 @@ def gen_sql_insert_new(df, table_name) -> str:
         query += ", ".join(update_values) + ";"
         query_lst.append(query)
     return "\n".join(query_lst)
+
+
+def del_col(sql_string):
+    # Find the campaign_id and its value in the SQL string
+    campaign_id_match = re.search(r"campaign_id\s*=\s*'\d+'", sql_string)
+    if campaign_id_match:
+        campaign_id = campaign_id_match.group(0)
+        campaign_id_value = re.search(r"\d+", campaign_id)
+        campaign_id_value = f"'{campaign_id_value.group(0)}')"
+        sql_string = sql_string.replace(campaign_id, "campaign_id = NULL")
+        sql_string = sql_string.replace(campaign_id_value, "NULL)")
+        sql_string = sql_string.rstrip(", ")
+        sql_string = sql_string.lstrip(", ")
+
+    return sql_string

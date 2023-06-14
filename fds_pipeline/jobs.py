@@ -1,6 +1,8 @@
-from dagster import op, job, Config, Out, Failure
+from dagster import op, job, Config, Out, Failure, RetryRequested
 from dagster_pandas import DataFrame
 from urllib.error import HTTPError
+from sqlalchemy import exc
+from psycopg2.errors import ForeignKeyViolation
 from fds_pipeline.ressources import FDSAPI, PostgresQuery
 from fds_pipeline.processing import (
     process_foi_request,
@@ -9,6 +11,7 @@ from fds_pipeline.processing import (
     process_campaigns,
     process_messages,
     gen_sql_insert_new,
+    del_col,
 )
 from fds_pipeline.df_types import FOIRequestDf, JurisdictionDf, PublicBodyDf, CampaignDf, MessageDf
 
@@ -74,14 +77,34 @@ def sql_messages(extract_messages) -> str:
 ###### Execute SQL
 @op
 def insert_public_body(sql_public_body, postgres_query: PostgresQuery):
-    print(sql_public_body)
-    print(type(sql_public_body))
-    postgres_query.execute(sql_public_body)
+    try:
+        postgres_query.execute(sql_public_body)
+    # if foreign key not present, retry (jurisdiction table is updated once every hour)
+    except exc.IntegrityError as err:
+        if isinstance(err.orig, ForeignKeyViolation):
+            raise RetryRequested(max_retries=1, seconds_to_wait=3600) from err
+        else:
+            raise Exception(err)
 
 
 @op
-def insert_foi_request(sql_foi_request, postgres_query: PostgresQuery):
-    postgres_query.execute(sql_foi_request)
+def insert_foi_request(context, sql_foi_request, postgres_query: PostgresQuery):
+    try:
+        postgres_query.execute(sql_foi_request)
+    # if foreign key not present, retry (campaign  is updated once every hour)
+    # if not present again, change campaign_id to be NULL
+    except exc.IntegrityError as err:
+        if isinstance(err.orig, ForeignKeyViolation):
+            if context.retry_number > 0:
+                if "campaigns" in str(err) and "fk_campaign" in str(err):
+                    sql_foi_request = del_col(sql_foi_request)
+                    postgres_query.execute(sql_foi_request)
+                else:
+                    raise Exception(err)
+            else:
+                raise RetryRequested(max_retries=1, seconds_to_wait=3600) from err
+        else:
+            raise Exception(err)
 
 
 @op
@@ -127,12 +150,11 @@ def insert_campaigns(sql_campaigns, postgres_query: PostgresQuery):
 @job
 def proc_insert_campaigns():
     insert_campaigns(sql_campaigns(extract_campaigns(get_campaigns())))
-    # return retreive_campaigns()
 
 
 # Jurisdictions
-# We have to do this separetely because foi_request object retreived from api doesnt contain jurisdiction data when its
-# null
+# We have to do this separetely because foi_request object retreived from api doesnt contain all jurisdiction data when
+# public body is null
 @op
 def get_jurisdictions(context, fds_api: FDSAPI) -> list:
     return fds_api.get_list("jurisdiction")

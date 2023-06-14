@@ -5,6 +5,7 @@ from fds_pipeline.jobs import (
     get_jurisdictions,
     extract_jurisdictions,
     sql_campaigns,
+    sql_foi_request,
     extract_campaigns,
     extract_public_body,
     get_campaigns,
@@ -72,9 +73,14 @@ def test_sql_public_body():
     assert temp == test_sql
 
 
+def test_sql_foi_request():
+    test_df = importlib.import_module("tests.data.test_foi_req_df").df
+    test_sql = importlib.import_module("tests.data.test_foi_req_sql").sql
+    temp = sql_foi_request(test_df)
+    assert temp == test_sql
+
+
 #### Data from List of Campaigns ######
-
-
 def test_get_campaigns():
     context = build_op_context(resources={"fds_api": FDSAPI()})
     temp = get_campaigns(context)
