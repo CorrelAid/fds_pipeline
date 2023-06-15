@@ -1,6 +1,3 @@
-run_queue:
-  max_concurrent_runs: 5
-
 scheduler:
   module: dagster.core.scheduler
   class: DagsterDaemonScheduler
@@ -17,7 +14,16 @@ run_launcher:
       - DAGSTER_POSTGRES_USER
       - DAGSTER_POSTGRES_PASSWORD
       - DAGSTER_POSTGRES_DB
-    network: docker_example_network
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - MINIO_ENDPOINT_URL
+      - MINIO_BUCKET
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - POSTGRES_PORT
+      - POSTGRES_HOST
+    network: dagster_network
     container_kwargs:
       volumes: # Make docker client accessible to any launched containers as well
         - /var/run/docker.sock:/var/run/docker.sock
@@ -28,7 +34,7 @@ run_storage:
   class: PostgresRunStorage
   config:
     postgres_db:
-      hostname: docker_example_postgresql
+      hostname: dagster_storage_postgresql
       username:
         env: DAGSTER_POSTGRES_USER
       password:
@@ -42,7 +48,7 @@ schedule_storage:
   class: PostgresScheduleStorage
   config:
     postgres_db:
-      hostname: docker_example_postgresql
+      hostname: dagster_storage_postgresql
       username:
         env: DAGSTER_POSTGRES_USER
       password:
@@ -56,7 +62,7 @@ event_log_storage:
   class: PostgresEventLogStorage
   config:
     postgres_db:
-      hostname: docker_example_postgresql
+      hostname: dagster_storage_postgresql
       username:
         env: DAGSTER_POSTGRES_USER
       password:

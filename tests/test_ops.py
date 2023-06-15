@@ -4,17 +4,14 @@ from fds_pipeline.jobs import (
     extract_foi_request,
     get_jurisdictions,
     extract_jurisdictions,
-    sql_campaigns,
-    sql_foi_request,
     extract_campaigns,
     extract_public_body,
     get_campaigns,
     extract_messages,
-    sql_public_body,
 )
+from fds_pipeline.processing import gen_sql_insert_new
 import importlib
 from dagster import build_op_context
-from dagster._core.definitions.events import Failure
 import pandas as pd
 from fds_pipeline.ressources import FDSAPI
 
@@ -23,13 +20,13 @@ from fds_pipeline.ressources import FDSAPI
 def test_get_foi_request():
     context = build_op_context(resources={"fds_api": FDSAPI()})
     temp = get_foi_request(context, APIConfig(id_=82))
+    temp = list(temp)[0]._value
     assert isinstance(temp, dict)
     assert "id" in temp
     context = build_op_context(resources={"fds_api": FDSAPI()})
-    try:
-        temp = get_foi_request(context, APIConfig(id_=1))
-    except Failure as err:
-        assert err.description == "FOI request not found"
+    temp = get_foi_request(context, APIConfig(id_=1))
+    temp = list(temp)[0]._value
+    assert temp is None
 
 
 def test_extract_foi_request_regular():
@@ -42,22 +39,25 @@ def test_extract_foi_request_no_pb():
     # no public body id
     test_dct = importlib.import_module("tests.data.test_foi_req_46").test_foi_req
     temp = extract_foi_request(test_dct)
-    assert isinstance(temp, pd.DataFrame)
+    temp = list(temp)[0]
+    assert temp == "id"
 
 
 def test_extract_public_body():
+    context = build_op_context()
     test_dct = importlib.import_module("tests.data.test_foi_req").test_foi_req
-    temp = extract_public_body(test_dct)
+    temp = extract_public_body(context, test_dct)
+    temp = list(temp)[0]._value
     assert isinstance(temp, pd.DataFrame)
 
 
 def test_extract_public_body_no_pb():
+    context = build_op_context()
     # no public body id
     test_dct = importlib.import_module("tests.data.test_foi_req_46").test_foi_req
-    try:
-        extract_public_body(test_dct)
-    except Failure as err:
-        assert str(err) == repr("FOI request was not assigned a public body")
+    temp = extract_public_body(context, test_dct)
+    temp = list(temp)[0]._value
+    assert temp is None
 
 
 def test_extract_messages():
@@ -69,15 +69,14 @@ def test_extract_messages():
 def test_sql_public_body():
     test_df = importlib.import_module("tests.data.test_public_body_df").df
     test_sql = importlib.import_module("tests.data.test_public_body_sql").sql
-    temp = sql_public_body(test_df)
-    print(temp)
+    temp = gen_sql_insert_new(test_df, "public_bodies")
     assert temp == test_sql
 
 
 def test_sql_foi_request():
     test_df = importlib.import_module("tests.data.test_foi_req_df").df
     test_sql = importlib.import_module("tests.data.test_foi_req_sql").sql
-    temp = sql_foi_request(test_df)
+    temp = gen_sql_insert_new(test_df, "foi_requests")
     assert temp == test_sql
 
 
@@ -96,7 +95,7 @@ def test_extract_campaigns():
 
 def test_sql_campaigns():
     test_df = importlib.import_module("tests.data.test_campaigns_df").df
-    temp = sql_campaigns(test_df)
+    temp = gen_sql_insert_new(test_df, "campaigns")
     test_sql = importlib.import_module("tests.data.test_campaigns_sql").string
     assert temp == test_sql
 

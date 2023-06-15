@@ -3,43 +3,51 @@ version: "3.7"
 services:
   # This service runs the postgres DB used by dagster for run storage, schedule storage,
   # and event log storage.
-  docker_example_postgresql:
+  dagster_storage_postgresql:
     image: postgres:11
-    container_name: docker_example_postgresql
+    container_name: dagster_storage_postgresql
     environment:
       POSTGRES_USER: "postgres_user"
       POSTGRES_PASSWORD: "postgres_password"
       POSTGRES_DB: "postgres_db"
+    ports:
+      - 5432
     networks:
-      - docker_example_network
+      - dagster_network
 
   # This service runs the gRPC server that loads your user code, in both dagit
   # and dagster-daemon. By setting DAGSTER_CURRENT_IMAGE to its own image, we tell the
   # run launcher to use this same image when launching runs in a new container as well.
   # Multiple containers like this can be deployed separately - each just needs to run on
   # its own port, and have its own entry in the workspace.yaml file that's loaded by dagit.
-  docker_example_user_code:
+  dagster_user_code:
     build:
       context: .
-      dockerfile: ./dagster_deployment/Dockerfile_user_code
-    container_name: docker_example_user_code
-    image: docker_example_user_code_image
+      dockerfile: Dockerfile_user_code
+    container_name: dagster_user_code
+    networks:
+      - dagster_network
+    env_file:
+     - .env
+    image: dagster_user_code
+    ports:
+      - 4000
     restart: always
     environment:
       DAGSTER_POSTGRES_USER: "postgres_user"
       DAGSTER_POSTGRES_PASSWORD: "postgres_password"
       DAGSTER_POSTGRES_DB: "postgres_db"
-      DAGSTER_CURRENT_IMAGE: "docker_example_user_code_image"
-    networks:
-      - docker_example_network
+      DAGSTER_CURRENT_IMAGE: "dagster_user_code"
 
   # This service runs dagit, which loads your user code from the user code container.
   # Since our instance uses the QueuedRunCoordinator, any runs submitted from dagit will be put on
   # a queue and later dequeued and launched by dagster-daemon.
-  docker_example_dagit:
+  dagit:
     build:
       context: .
-      dockerfile: ./dagster_deployment/Dockerfile_dagster
+      dockerfile: Dockerfile_dagster
+    env_file:
+     - .env
     entrypoint:
       - dagit
       - -h
@@ -48,9 +56,7 @@ services:
       - "3000"
       - -w
       - workspace.yaml
-    container_name: docker_example_dagit
-    expose:
-      - "3000"
+    container_name: dagit
     ports:
       - "3000:3000"
     environment:
@@ -60,37 +66,98 @@ services:
     volumes: # Make docker client accessible so we can terminate containers from dagit
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/io_manager_storage:/tmp/io_manager_storage
-    networks:
-      - docker_example_network
     depends_on:
-      - docker_example_postgresql
-      - docker_example_user_code
+      - dagster_storage_postgresql
+      - dagster_user_code
+    networks:
+      - dagster_network
+      - caddy
+    labels:
+      caddy: "{{ domain }}"
+      caddy.reverse_proxy: "{{"{{upstreams 8055}}"}}"
+      caddy.basicauth.admin: "{{ caddy_pw }}"
+      
 
   # This service runs the dagster-daemon process, which is responsible for taking runs
   # off of the queue and launching them, as well as creating runs from schedules or sensors.
-  docker_example_daemon:
+  dagster_daemon:
     build:
       context: .
-      dockerfile: ./dagster_deployment/Dockerfile_dagster
+      dockerfile: Dockerfile_dagster
     entrypoint:
       - dagster-daemon
       - run
-    container_name: docker_example_daemon
+    container_name: dagster_daemon
     restart: on-failure
+    networks:
+        - dagster_network
     environment:
       DAGSTER_POSTGRES_USER: "postgres_user"
       DAGSTER_POSTGRES_PASSWORD: "postgres_password"
       DAGSTER_POSTGRES_DB: "postgres_db"
+    env_file:
+     - .env
     volumes: # Make docker client accessible so we can launch containers using host docker
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/io_manager_storage:/tmp/io_manager_storage
-    networks:
-      - docker_example_network
     depends_on:
-      - docker_example_postgresql
-      - docker_example_user_code
+      - dagster_storage_postgresql
+      - dagster_user_code
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    networks:
+      - dagster_network
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_storage:/data
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    command: server --console-address ":9001" /data
+  
+  createbuckets:
+    image: minio/mc
+    networks:
+      - dagster_network
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set main http://minio:9000 minio minio123;
+      /usr/bin/mc mb main/main;
+      /usr/bin/mc policy set public main/main;
+      exit 0;
+      "
+  
+  postgres_data:
+    container_name: postgres_data
+    image: postgres-data
+    build: ./postgres/.
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+    networks:
+      - dagster_network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - APP_DB_USER=dagster
+      - APP_DB_PASS=dagster
+      - APP_DB_NAME=main
+    ports:
+      - 5432
+  
+    
+ 
+volumes:
+  minio_storage: {}
+  postgres_storage: {}
 networks:
-  docker_example_network:
+  dagster_network:
     driver: bridge
-    name: docker_example_network
+    name: dagster_network
+  caddy:
+    external: true

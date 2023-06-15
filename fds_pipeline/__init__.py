@@ -5,16 +5,6 @@ from fds_pipeline.ressources import FDSAPI, PostgresQuery
 from fds_pipeline.sensors import new_foi_requests
 
 
-# def generate_hourly_cron_schedule():
-#     # schedule should start after dagster is started, so generate a cronjob taking current minute into account
-#     now = datetime.datetime.now()
-#     minute = now.minute+1
-
-#     cron_schedule = f"{minute} * * * *"
-
-#     return cron_schedule
-
-
 campaigns_every_hour = ScheduleDefinition(
     job=proc_insert_campaigns, cron_schedule="1 * * * *", default_status=DefaultScheduleStatus.RUNNING
 )

@@ -1,5 +1,4 @@
 from dagster import op, job, Config, Out, RetryRequested, graph, OpExecutionContext, In, Output, Nothing
-from dagster_celery import celery_executor
 from dagster_pandas import DataFrame
 from urllib.error import HTTPError
 from sqlalchemy import exc
@@ -14,6 +13,7 @@ from fds_pipeline.processing import (
     gen_sql_insert_new,
     del_col,
 )
+
 from fds_pipeline.df_types import FOIRequestDf, JurisdictionDf, PublicBodyDf, CampaignDf, MessageDf
 
 
@@ -60,29 +60,12 @@ def extract_messages(get_foi_request) -> DataFrame:
     return df
 
 
-###### Generate SQL
-
-
-@op
-def sql_public_body(extract_public_body) -> str:
-    return gen_sql_insert_new(extract_public_body, "public_bodies")
-
-
-@op
-def sql_foi_request(extract_foi_request) -> str:
-    return gen_sql_insert_new(extract_foi_request, "foi_requests")
-
-
-@op
-def sql_messages(extract_messages) -> str:
-    return gen_sql_insert_new(extract_messages, "messages")
-
-
 ###### Execute SQL
 @op
-def insert_public_body(sql_public_body, postgres_query: PostgresQuery):
+def insert_public_body(extract_public_body, postgres_query: PostgresQuery):
     try:
-        postgres_query.execute(sql_public_body)
+        sql = gen_sql_insert_new(extract_public_body, "public_bodies")
+        postgres_query.execute(sql)
     # if foreign key not present, retry (jurisdiction table is updated once every hour)
     except exc.IntegrityError as err:
         if isinstance(err.orig, ForeignKeyViolation):
@@ -92,17 +75,19 @@ def insert_public_body(sql_public_body, postgres_query: PostgresQuery):
 
 
 @op(ins={"start": In(Nothing)})
-def insert_foi_request(context: OpExecutionContext, sql_foi_request, postgres_query: PostgresQuery):
+def insert_foi_request(context: OpExecutionContext, extract_foi_request, postgres_query: PostgresQuery):
     try:
-        postgres_query.execute(sql_foi_request)
+        sql = gen_sql_insert_new(extract_foi_request, "foi_requests")
+        postgres_query.execute(sql)
     # if foreign key for campaign not present, retry (campaign  is updated once every hour)
     # if not present again, change campaign_id to be NULL
     except exc.IntegrityError as err:
         if isinstance(err.orig, ForeignKeyViolation):
             if "campaigns" in str(err) and "fk_campaign" in str(err):
                 if context.retry_number > 0:
-                    sql_foi_request = del_col(sql_foi_request)
-                    postgres_query.execute(sql_foi_request)
+                    sql = gen_sql_insert_new(extract_foi_request, "foi_requests")
+                    sql = del_col(sql)
+                    postgres_query.execute(sql)
                 else:
                     raise RetryRequested(max_retries=1, seconds_to_wait=3600) from err
             else:
@@ -112,11 +97,12 @@ def insert_foi_request(context: OpExecutionContext, sql_foi_request, postgres_qu
 
 
 @op(ins={"start": In(Nothing)})
-def insert_messages(sql_messages, postgres_query: PostgresQuery):
-    postgres_query.execute(sql_messages)
+def insert_messages(extract_messages, postgres_query: PostgresQuery):
+    sql = gen_sql_insert_new(extract_messages, "messages")
+    postgres_query.execute(sql)
 
 
-@graph(executor_def=celery_executor)
+@graph
 def proc_insert() -> None:
     # Everything depends on data, so if data is not present, all other ops wont execute
     data, fail_foi = get_foi_request()
@@ -125,15 +111,9 @@ def proc_insert() -> None:
     foi_request = extract_foi_request(get_foi_request=data)
     messages = extract_messages(data)
 
-    sql_public_body_ = sql_public_body(public_body)
-    sql_foi_request_ = sql_foi_request(foi_request)
-    sql_messages_ = sql_messages(messages)
+    insert_messages(messages, start=insert_foi_request(foi_request, start=insert_public_body(public_body)))
 
-    insert_messages(
-        sql_messages_, start=insert_foi_request(sql_foi_request_, start=insert_public_body(sql_public_body_))
-    )
-
-    insert_messages(sql_messages_, start=insert_foi_request(sql_foi_request_, start=fail))
+    insert_messages(messages, start=insert_foi_request(foi_request, start=fail))
 
 
 proc_insert_job = proc_insert.to_job()
@@ -152,18 +132,14 @@ def extract_campaigns(get_campaigns) -> DataFrame:
 
 
 @op
-def sql_campaigns(extract_campaigns) -> str:
-    return gen_sql_insert_new(extract_campaigns, "campaigns")
-
-
-@op
-def insert_campaigns(sql_campaigns, postgres_query: PostgresQuery):
-    postgres_query.execute(sql_campaigns)
+def insert_campaigns(extract_campaigns, postgres_query: PostgresQuery):
+    sql = gen_sql_insert_new(extract_campaigns, "campaigns")
+    postgres_query.execute(sql)
 
 
 @job
 def proc_insert_campaigns():
-    insert_campaigns(sql_campaigns(extract_campaigns(get_campaigns())))
+    insert_campaigns(extract_campaigns(get_campaigns()))
 
 
 # Jurisdictions
@@ -180,16 +156,11 @@ def extract_jurisdictions(get_jurisdictions) -> DataFrame:
 
 
 @op
-def sql_jurisdictions(extract_jurisdictions) -> str:
-    return gen_sql_insert_new(extract_jurisdictions, "jurisdictions")
-
-
-@op
-def insert_jurisdictions(sql_jurisdictions, postgres_query: PostgresQuery):
-    postgres_query.execute(sql_jurisdictions)
+def insert_jurisdictions(extract_jurisdictions, postgres_query: PostgresQuery):
+    sql = gen_sql_insert_new(extract_jurisdictions, "jurisdictions")
+    postgres_query.execute(sql)
 
 
 @job
 def proc_insert_jurisdictions():
-    insert_jurisdictions(sql_jurisdictions(extract_jurisdictions(get_jurisdictions())))
-    # return retreive_campaigns()
+    insert_jurisdictions(extract_jurisdictions(get_jurisdictions()))

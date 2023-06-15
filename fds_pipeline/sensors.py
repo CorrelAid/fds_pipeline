@@ -1,6 +1,8 @@
-from dagster import sensor, RunRequest, SkipReason, RunConfig, SensorEvaluationContext, DefaultSensorStatus
+from dagster import sensor, RunRequest, SkipReason, RunConfig, SensorEvaluationContext
 
 from fds_pipeline.jobs import APIConfig, proc_insert_job
+
+run_config = {"config": {"multiprocess": {"max_concurrent": 20}}}
 
 
 # Sensor that counts number of foi requests in db and if number is lower than items in
@@ -12,7 +14,6 @@ from fds_pipeline.jobs import APIConfig, proc_insert_job
 @sensor(
     job=proc_insert_job,
     minimum_interval_seconds=10,
-    default_status=DefaultSensorStatus.RUNNING,
     required_resource_keys={"fds_api", "postgres_query"},
 )
 def new_foi_requests(context: SensorEvaluationContext):
@@ -26,7 +27,7 @@ def new_foi_requests(context: SensorEvaluationContext):
     if total_db < total_api:
         # determine number of runs
         diff = total_api - total_db
-        length = 10
+        length = 20
         test = diff - length
         # if standard number of runs is below number of not loaded foi requests
         if test < 0:
@@ -51,7 +52,7 @@ def new_foi_requests(context: SensorEvaluationContext):
         for id_ in id_lst:
             yield RunRequest(
                 run_key=str(f"new_{id_}"),
-                run_config=RunConfig(ops={"get_foi_request": APIConfig(id_=id_)}),
+                run_config=RunConfig(ops={"get_foi_request": APIConfig(id_=id_)}, execution=run_config),
             )
 
     else:

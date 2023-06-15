@@ -1,0 +1,69 @@
+---
+- hosts: all
+  gather_facts: true
+  become: false
+  vars_files:
+    - group_vars/machine.yml
+    - group_vars/vault.yml
+
+  tasks:
+    - name: clone repo
+      shell: |
+        rm -rf /app
+        git clone https://github.com/CorrelAid/fds_pipeline.git app
+      
+
+    - name: Template docker compose to server
+      template:
+        src: "templates/docker-compose.yml"
+        dest: "/home/{{  ansible_user   }}/app/docker-compose.yml"
+    
+    - name: Copy dagster.yaml
+      copy: 
+        src: files/dagster.yaml
+        dest: "/home/{{  ansible_user   }}/app/workspace.yaml"
+    
+    - name: Copy workspace.yaml
+      copy: 
+        src: files/workspace.yaml
+        dest: "/home/{{  ansible_user   }}/app/dagster.yaml"
+
+    - name: Copy .env
+      copy: 
+        src: files/.env
+        dest: "/home/{{  ansible_user   }}/app/.env"
+    
+    - name: Copy Dagster Dockerfile
+      copy: 
+        src: files/Dockerfile_dagster
+        dest: "/home/{{  ansible_user   }}/app/Dockerfile_dagster"
+    
+    - name: Copy Dagster Dockerfile 2
+      copy: 
+        src: files/Dockerfile_user_code
+        dest: "/home/{{  ansible_user   }}/app/Dockerfile_user_code"
+
+    - name: creating network
+      shell: |
+        docker network inspect caddy >/dev/null 2>&1 || \
+        docker network create caddy
+    
+    - name: Create dir for docker compose
+      file:
+        path: "/home/{{  ansible_user   }}/caddy"
+        state: directory
+        owner: "{{  ansible_user   }}"
+        mode: 0775
+
+    - name: copy caddy docker compose to server
+      copy: 
+        src: files/docker-compose.yml
+        dest: "/home/{{  ansible_user   }}/caddy/docker-compose.yml"
+
+    - name: deploying caddy
+      shell: |
+        cd caddy && docker compose up -d
+
+    - name: deploying app
+      shell: |
+        cd app && docker compose up -d

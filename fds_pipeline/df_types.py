@@ -45,7 +45,12 @@ FOIRequestDf = create_dagster_pandas_dataframe_type(
     name="FOIRequestDf",
     columns=[
         PandasColumn.integer_column("id", min_value=0),
-        PandasColumn.integer_column("jurisdiction_id"),
+        PandasColumn(
+            "jurisdiction_id",
+            constraints=[
+                NullOrIntConstraint(),
+            ],
+        ),
         PandasColumn.string_column("refusal_reason"),
         PandasColumn.float_column("costs"),
         PandasColumn(
