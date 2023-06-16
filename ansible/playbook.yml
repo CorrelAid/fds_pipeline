@@ -9,8 +9,8 @@
   tasks:
     - name: clone repo
       shell: |
-        rm -rf /app
-        git clone https://github.com/CorrelAid/fds_pipeline.git app
+        rm -rf /home/{{  ansible_user   }}/app
+        git clone https://github.com/CorrelAid/fds_pipeline.git /home/{{  ansible_user   }}/app
       
 
     - name: Template docker compose to server
@@ -21,12 +21,12 @@
     - name: Copy dagster.yaml
       copy: 
         src: files/dagster.yaml
-        dest: "/home/{{  ansible_user   }}/app/workspace.yaml"
+        dest: "/home/{{  ansible_user   }}/app/dagster.yaml"
     
     - name: Copy workspace.yaml
       copy: 
         src: files/workspace.yaml
-        dest: "/home/{{  ansible_user   }}/app/dagster.yaml"
+        dest: "/home/{{  ansible_user   }}/app/workspace.yaml"
 
     - name: Copy .env
       copy: 

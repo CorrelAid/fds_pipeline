@@ -74,8 +74,8 @@ services:
       - caddy
     labels:
       caddy: "{{ domain }}"
-      caddy.reverse_proxy: "{{"{{upstreams 8055}}"}}"
-      caddy.basicauth.admin: "{{ caddy_pw }}"
+      caddy.reverse_proxy: "{{"{{upstreams 3000}}"}}"
+      caddy.basicauth.admin: "{{  caddy_pw }}"
       
 
   # This service runs the dagster-daemon process, which is responsible for taking runs
