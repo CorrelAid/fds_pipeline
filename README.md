@@ -50,7 +50,7 @@ POSTGRES_HOST=localhost
 ```
 docker compose -f local_dev.yml down --volumes
 docker compose build --no-cache
-docker compose -f local_dev.yml up --force-recreate --verbose
+docker compose -f local_dev.yml up --force-recreate 
 ```
 
 This will spin up a postgres database and minio s3 storage.
