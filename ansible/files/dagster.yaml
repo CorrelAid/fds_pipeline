@@ -2,9 +2,14 @@ scheduler:
   module: dagster.core.scheduler
   class: DagsterDaemonScheduler
 
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: DefaultRunCoordinator
+
 run_launcher:
   module: dagster.core.launcher
   class: DefaultRunLauncher
+
 
 run_storage:
   module: dagster_postgres.run_storage
@@ -47,6 +52,4 @@ event_log_storage:
       db_name:
         env: DAGSTER_POSTGRES_DB
       port: 5432
-
-sensors:
-  num_submit_workers: 5
+      
