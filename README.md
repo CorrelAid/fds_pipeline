@@ -19,7 +19,20 @@ proc_insert_jurisdictions and proc_insert_campaigns are executed once every hour
 proc_insert is executed based on the evaluation of a sensor. If the database contains less entries than the api, the sensor retreives the highest id in the database or the id in the cursor(jobs can result in not inserting a foi request when an id doesnt exist in api) and makes a run request for a number of proc_insert jobs with ids that are not already in db.
 
 ## Dev Setup
-Create an .env file with following contents:
+1. Clone Repo
+
+2. Install requirements
+
+```
+poetry install
+```
+3. Set up pre commit hook
+
+```
+poetry run pre-commit install 
+```
+4. Create an .env file with following contents:
+
 ```
 AWS_ACCESS_KEY_ID=minio
 AWS_SECRET_ACCESS_KEY=minio123
@@ -32,7 +45,8 @@ POSTGRES_PORT=5436
 POSTGRES_HOST=localhost
 ```
 
-Create necessary infrastructure
+5. Create necessary infrastructure
+
 ```
 docker compose -f local_dev.yml down --volumes
 docker compose build --no-cache
@@ -40,3 +54,14 @@ docker compose -f local_dev.yml up --force-recreate --verbose
 ```
 
 This will spin up a postgres database and minio s3 storage.
+
+6. Run the dagster daemon and GUI or only GUI
+
+Daemon and GUI:
+```
+poetry run dagster dev
+```
+GUI:
+```
+poetry run dagit
+```
